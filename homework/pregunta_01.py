@@ -69,5 +69,68 @@ def pregunta_01():
     |  4 | Tampere Science Parks is a Finnish company that owns , leases and builds office properties and it specialises in facilities for technology-oriented businesses         | neutral  |
     ```
 
-
     """
+    import os
+    import zipfile
+    import pandas as pd
+    from pathlib import Path
+
+    # Crear directorio output si no existe
+    output_dir = Path("files/output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Verificar si el archivo zip existe
+    zip_path = Path("files/input.zip")
+    if not zip_path.exists():
+        raise FileNotFoundError(f"No se encontró el archivo {zip_path}")
+
+    # Descomprimir el archivo zip
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        zip_ref.extractall("files/input")
+
+    def process_directory(base_dir, dataset_type):
+        data = []
+        base_path = Path(f"files/input/{dataset_type}")
+
+        if not base_path.exists():
+            raise FileNotFoundError(f"No se encontró el directorio {base_path}")
+
+        # Procesar cada carpeta de sentimiento
+        for sentiment in ["positive", "negative", "neutral"]:
+            sentiment_dir = base_path / sentiment
+            if sentiment_dir.exists():
+                # Leer cada archivo de texto
+                for txt_file in sentiment_dir.glob("*.txt"):
+                    try:
+                        with open(txt_file, "r", encoding="utf-8") as f:
+                            phrase = f.read().strip()
+                            if phrase:  # Solo agregar si hay contenido
+                                data.append({"phrase": phrase, "target": sentiment})
+                    except Exception as e:
+                        print(f"Error al procesar {txt_file}: {str(e)}")
+
+        if not data:
+            raise ValueError(f"No se encontraron datos en {base_path}")
+
+        # Crear DataFrame y guardar como CSV
+        df = pd.DataFrame(data)
+        output_file = output_dir / f"{dataset_type}_dataset.csv"
+        df.to_csv(output_file, index=False)
+        return df
+
+    try:
+        # Procesar directorios train y test
+        train_df = process_directory("files/input", "train")
+        test_df = process_directory("files/input", "test")
+
+        # Verificar que los archivos se crearon correctamente
+        if not (output_dir / "train_dataset.csv").exists():
+            raise FileNotFoundError("No se pudo crear train_dataset.csv")
+        if not (output_dir / "test_dataset.csv").exists():
+            raise FileNotFoundError("No se pudo crear test_dataset.csv")
+
+        return train_df, test_df
+
+    except Exception as e:
+        print(f"Error durante el procesamiento: {str(e)}")
+        raise
